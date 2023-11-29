@@ -9,9 +9,9 @@ import (
 
 type Health struct{}
 
-func (h Health) Route(f *abair.Server) {
-	abair.Get(f, "/health", h.getHealth)
-	abair.Post(f, "/health", h.postHealth)
+func (h Health) Route(s *abair.Server) {
+	abair.Get(s, "/health", h.getHealth)
+	abair.Post(s, "/health", h.postHealth)
 }
 
 func (h Health) getHealth(ctx context.Context, req abair.Request[struct{}]) (struct{}, error) {

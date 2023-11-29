@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	f := abair.Server{
+	s := abair.Server{
 		Router: chi.NewRouter(),
 		ErrorHandler: func(_ http.ResponseWriter, _ *http.Request, err error) {
 			fmt.Println(fmt.Errorf("bad error: %w", err))
@@ -18,7 +18,7 @@ func main() {
 	}
 
 	h := rest.Health{}
-	h.Route(&f)
+	h.Route(&s)
 
-	http.ListenAndServe(":3000", f)
+	http.ListenAndServe(":3000", s)
 }

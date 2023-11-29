@@ -19,8 +19,8 @@ type Server struct {
 }
 
 // ServeHTTP implements http.Handler.
-func (f Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	f.Router.ServeHTTP(w, r)
+func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.Router.ServeHTTP(w, r)
 }
 
 // Request is a request.
@@ -34,54 +34,54 @@ type Request[T any] struct {
 type HandlerFunc[Req, Resp any] func(context.Context, Request[Req]) (Resp, error)
 
 // Get is a GET handler.
-func Get[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Get(path, handler(f, hndlr))
+func Get[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Get(path, handler(s, hndlr))
 }
 
 // Post is a POST handler.
-func Post[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Post(path, handler(f, hndlr))
+func Post[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Post(path, handler(s, hndlr))
 }
 
 // Put is a PUT handler.
-func Put[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Put(path, handler(f, hndlr))
+func Put[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Put(path, handler(s, hndlr))
 }
 
 // Delete is a DELETE handler.
-func Delete[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Delete(path, handler(f, hndlr))
+func Delete[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Delete(path, handler(s, hndlr))
 }
 
 // Patch is a PATCH handler.
-func Patch[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Patch(path, handler(f, hndlr))
+func Patch[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Patch(path, handler(s, hndlr))
 }
 
 // Options is a OPTIONS handler.
-func Options[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Options(path, handler(f, hndlr))
+func Options[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Options(path, handler(s, hndlr))
 }
 
 // Head is a HEAD handler.
-func Head[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Head(path, handler(f, hndlr))
+func Head[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Head(path, handler(s, hndlr))
 }
 
 // Connect is a CONNECT handler.
-func Connect[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Connect(path, handler(f, hndlr))
+func Connect[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Connect(path, handler(s, hndlr))
 }
 
 // Trace is a TRACE handler.
-func Trace[Req, Resp any](f *Server, path string, hndlr HandlerFunc[Req, Resp]) {
-	f.Router.Trace(path, handler(f, hndlr))
+func Trace[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+	s.Router.Trace(path, handler(s, hndlr))
 }
 
-func handler[Req, Resp any](f *Server, hndlr HandlerFunc[Req, Resp]) http.HandlerFunc {
+func handler[Req, Resp any](s *Server, hndlr HandlerFunc[Req, Resp]) http.HandlerFunc {
 	loadErrorHandler.Do(func() {
-		if f.ErrorHandler == nil {
-			f.ErrorHandler = defaultErrorHandler
+		if s.ErrorHandler == nil {
+			s.ErrorHandler = defaultErrorHandler
 		}
 	})
 
@@ -90,7 +90,7 @@ func handler[Req, Resp any](f *Server, hndlr HandlerFunc[Req, Resp]) http.Handle
 
 		var req Request[Req]
 		if err := json.NewDecoder(r.Body).Decode(&req.Body); err != nil {
-			f.ErrorHandler(w, r, err)
+			s.ErrorHandler(w, r, err)
 			return
 		}
 
@@ -99,12 +99,12 @@ func handler[Req, Resp any](f *Server, hndlr HandlerFunc[Req, Resp]) http.Handle
 
 		resp, err := hndlr(ctx, req)
 		if err != nil {
-			f.ErrorHandler(w, r, err)
+			s.ErrorHandler(w, r, err)
 			return
 		}
 
 		if err = json.NewEncoder(w).Encode(resp); err != nil {
-			f.ErrorHandler(w, r, err)
+			s.ErrorHandler(w, r, err)
 			return
 		}
 	})
