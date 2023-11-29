@@ -9,7 +9,7 @@ import (
 
 type Health struct{}
 
-func (h Health) Route(f *abair.Framework) {
+func (h Health) Route(f *abair.Server) {
 	abair.Get(f, "/health", h.getHealth)
 	abair.Post(f, "/health", h.postHealth)
 }

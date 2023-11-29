@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	f := abair.Framework{
+	f := abair.Server{
 		Router: chi.NewRouter(),
 		ErrorHandler: func(_ http.ResponseWriter, _ *http.Request, err error) {
 			fmt.Println(fmt.Errorf("bad error: %w", err))
