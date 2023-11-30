@@ -22,6 +22,7 @@ func (h Health) Route(s *abair.Server) {
 		abair.Get(s, "/", h.getHealth)
 		abair.Post(s, "/", h.postHealth)
 		abair.Get(s, "/{service}/{version}/after", h.serviceHealth)
+		abair.Get(s, "/{arn}", h.arnHealth)
 	})
 	abair.Get(s, "/badhealth", h.badHealth)
 }
@@ -44,5 +45,13 @@ func (h Health) serviceHealth(ctx context.Context, req abair.Request[struct{}, d
 	return domain.HealthGetServiceResponse{
 		Service: req.PathParams.Service,
 		Version: req.PathParams.Version,
+	}, nil
+}
+
+func (h Health) arnHealth(ctx context.Context, req abair.Request[struct{}, domain.HealthGetArnPath]) (domain.HealthGetArnResponse, error) {
+	return domain.HealthGetArnResponse{
+		Partition: req.PathParams.Arn.Partition,
+		Region:    req.PathParams.Arn.Region,
+		AccountID: req.PathParams.Arn.AccountID,
 	}, nil
 }

@@ -169,6 +169,34 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 					return
 				}
 				pathVal.Elem().Field(i).SetFloat(val)
+			case reflect.Struct:
+				structValue := pathVal.Elem().Field(i)
+				fmt.Println(structValue)
+				ptr := structValue.Addr()
+				fmt.Println(ptr)
+
+				loader, ok := ptr.Interface().(interface {
+					ParsePath(string) error
+				})
+				if !ok {
+					break
+				}
+
+				if err := loader.ParsePath(pval); err != nil {
+					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
+						WithMessage(err.Error()),
+						WithInternal(err)),
+					)
+					return
+				}
+
+				//if ptr.Implements(reflect.TypeOf((*interface {
+				//	ParsePath(string) error
+				//})(nil)).Elem()) {
+				//	fmt.Println("ok so")
+				//}
+			case reflect.Ptr:
+
 			}
 		}
 
