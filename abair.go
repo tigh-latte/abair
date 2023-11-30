@@ -171,9 +171,7 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 				pathVal.Elem().Field(i).SetFloat(val)
 			case reflect.Struct:
 				structValue := pathVal.Elem().Field(i)
-				fmt.Println(structValue)
 				ptr := structValue.Addr()
-				fmt.Println(ptr)
 
 				loader, ok := ptr.Interface().(interface {
 					ParsePath(string) error
