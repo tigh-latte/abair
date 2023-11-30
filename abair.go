@@ -170,16 +170,12 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 				}
 				pathVal.Elem().Field(i).SetFloat(val)
 			case reflect.Struct:
-				structValue := pathVal.Elem().Field(i)
-				ptr := structValue.Addr()
-
-				loader, ok := ptr.Interface().(interface {
+				loader, ok := pathVal.Elem().Field(i).Addr().Interface().(interface {
 					ParsePath(string) error
 				})
 				if !ok {
 					break
 				}
-
 				if err := loader.ParsePath(pval); err != nil {
 					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
 						WithMessage(err.Error()),
