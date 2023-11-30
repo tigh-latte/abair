@@ -28,9 +28,9 @@ func main() {
 func middlewareExample(log *slog.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Info("hi")
+			log.LogAttrs(r.Context(), slog.LevelInfo, "hi")
 			next.ServeHTTP(w, r)
-			log.Info("bye")
+			log.LogAttrs(r.Context(), slog.LevelInfo, "bye")
 		})
 	}
 }

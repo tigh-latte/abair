@@ -2,6 +2,7 @@ package rest
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/tigh-latte/abair"
@@ -16,9 +17,9 @@ func (h Health) Route(s *abair.Server) {
 	abair.Route(s, "/health", func(s *abair.Server) {
 		abair.Use(s, func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				s.Logger.Info("inline hi")
+				s.Logger.LogAttrs(r.Context(), slog.LevelInfo, "inline hi")
 				next.ServeHTTP(w, r)
-				s.Logger.Info("inline bye")
+				s.Logger.LogAttrs(r.Context(), slog.LevelInfo, "inline bye")
 			})
 		})
 		abair.Get(s, "/", h.getHealth)
