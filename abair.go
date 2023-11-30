@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"reflect"
+	"strconv"
 	"sync"
 
 	"github.com/go-chi/chi/v5"
@@ -40,15 +42,15 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Request is a request.
-type Request[T any] struct {
-	Body        T
-	PathParams  map[string]string
+type Request[B, P any] struct {
+	Body        B
+	PathParams  P
 	QueryParams url.Values
 	Headers     http.Header
 }
 
 // HandlerFunc is a handler function.
-type HandlerFunc[Req, Resp any] func(context.Context, Request[Req]) (Resp, error)
+type HandlerFunc[Body, Path, Resp any] func(context.Context, Request[Body, Path]) (Resp, error)
 
 // Route is a route.
 func Route(s *Server, path string, fn func(s *Server)) {
@@ -63,61 +65,60 @@ func Route(s *Server, path string, fn func(s *Server)) {
 }
 
 // Get is a GET handler.
-func Get[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Get[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Get(path, handler(s, hndlr))
 }
 
 // Post is a POST handler.
-func Post[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Post[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Post(path, handler(s, hndlr))
 }
 
 // Put is a PUT handler.
-func Put[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Put[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Put(path, handler(s, hndlr))
 }
 
 // Delete is a DELETE handler.
-func Delete[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Delete[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Delete(path, handler(s, hndlr))
 }
 
 // Patch is a PATCH handler.
-func Patch[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Patch[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Patch(path, handler(s, hndlr))
 }
 
 // Options is a OPTIONS handler.
-func Options[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Options[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Options(path, handler(s, hndlr))
 }
 
 // Head is a HEAD handler.
-func Head[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Head[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Head(path, handler(s, hndlr))
 }
 
 // Connect is a CONNECT handler.
-func Connect[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Connect[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Connect(path, handler(s, hndlr))
 }
 
 // Trace is a TRACE handler.
-func Trace[Req, Resp any](s *Server, path string, hndlr HandlerFunc[Req, Resp]) {
+func Trace[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Trace(path, handler(s, hndlr))
 }
 
-func handler[Req, Resp any](s *Server, hndlr HandlerFunc[Req, Resp]) http.HandlerFunc {
+func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp]) http.HandlerFunc {
 	loadErrorHandler.Do(applyDefaultServerCfg(s))
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		routeCtx := chi.RouteContext(ctx)
 
-		req := Request[Req]{
-			PathParams:  make(map[string]string, len(routeCtx.URLParams.Keys)),
+		req := Request[Body, Path]{
+			PathParams:  *new(Path),
 			Headers:     r.Header,
-			Body:        *new(Req),
+			Body:        *new(Body),
 			QueryParams: r.URL.Query(),
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req.Body); err != nil && err != io.EOF {
@@ -125,8 +126,56 @@ func handler[Req, Resp any](s *Server, hndlr HandlerFunc[Req, Resp]) http.Handle
 			return
 		}
 
-		for i := 0; i < len(routeCtx.URLParams.Keys); i++ {
-			req.PathParams[routeCtx.URLParams.Keys[i]] = routeCtx.URLParams.Values[i]
+		var (
+			pathType = reflect.TypeOf(req.PathParams)
+			pathVal  = reflect.ValueOf(&req.PathParams)
+		)
+
+		for i := 0; i < pathType.NumField(); i++ {
+			field := pathType.Field(i)
+			tag := field.Tag.Get("path")
+			if tag == "" {
+				tag = field.Name
+			}
+
+			param := chi.URLParamFromCtx(ctx, tag)
+			if param == "" {
+				s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
+					WithMessage(fmt.Sprintf("missing param %q", tag)),
+				))
+				return
+			}
+
+			switch field.Type.Kind() {
+			case reflect.String:
+				pathVal.Elem().Field(i).SetString(param)
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+				val, err := strconv.ParseInt(param, 10, 64)
+				if err != nil {
+					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
+						WithMessage(fmt.Sprintf("expected param %q to be an integer", tag)),
+						WithInternal(err),
+					))
+					return
+				}
+				pathVal.Elem().Field(i).SetInt(int64(val))
+			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				val, err := strconv.ParseUint(param, 10, 64)
+				if err != nil {
+					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
+					return
+				}
+				pathVal.Elem().Field(i).SetUint(val)
+			case reflect.Float32, reflect.Float64:
+				val, err := strconv.ParseFloat(param, 64)
+				if err != nil {
+					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
+					return
+				}
+				pathVal.Elem().Field(i).SetFloat(val)
+			default:
+				continue
+			}
 		}
 
 		req.QueryParams = r.URL.Query()
@@ -155,8 +204,6 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 				}
 			}
 		} else {
-			var h2 HTTPError
-			fmt.Println(errors.As(err, &h2))
 			h = &HTTPError{
 				Code:    http.StatusInternalServerError,
 				Message: http.StatusText(http.StatusInternalServerError),
