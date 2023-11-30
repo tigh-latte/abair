@@ -138,8 +138,8 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 				tag = field.Name
 			}
 
-			param := chi.URLParamFromCtx(ctx, tag)
-			if param == "" {
+			pval := chi.URLParamFromCtx(ctx, tag)
+			if pval == "" {
 				s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
 					WithMessage(fmt.Sprintf("missing param %q", tag)),
 				))
@@ -148,9 +148,9 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 
 			switch field.Type.Kind() {
 			case reflect.String:
-				pathVal.Elem().Field(i).SetString(param)
+				pathVal.Elem().Field(i).SetString(pval)
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-				val, err := strconv.ParseInt(param, 10, 64)
+				val, err := strconv.ParseInt(pval, 10, 64)
 				if err != nil {
 					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
 						WithMessage(fmt.Sprintf("expected param %q to be an integer", tag)),
@@ -160,21 +160,19 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 				}
 				pathVal.Elem().Field(i).SetInt(int64(val))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				val, err := strconv.ParseUint(param, 10, 64)
+				val, err := strconv.ParseUint(pval, 10, 64)
 				if err != nil {
 					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
 					return
 				}
 				pathVal.Elem().Field(i).SetUint(val)
 			case reflect.Float32, reflect.Float64:
-				val, err := strconv.ParseFloat(param, 64)
+				val, err := strconv.ParseFloat(pval, 64)
 				if err != nil {
 					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
 					return
 				}
 				pathVal.Elem().Field(i).SetFloat(val)
-			default:
-				continue
 			}
 		}
 
@@ -233,7 +231,7 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 
 		bb, err := json.Marshal(response)
 		if err != nil {
-			slog.LogAttrs(
+			log.LogAttrs(
 				r.Context(),
 				slog.LevelError,
 				"failed to encode error",
