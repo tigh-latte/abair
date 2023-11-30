@@ -8,10 +8,19 @@ import (
 	"github.com/tigh-latte/abair/examples/domain"
 )
 
+// Health is a health handler.
 type Health struct{}
 
+// Route is a route.
 func (h Health) Route(s *abair.Server) {
 	abair.Route(s, "/health", func(s *abair.Server) {
+		abair.Use(s, func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				s.Logger.Info("inline hi")
+				next.ServeHTTP(w, r)
+				s.Logger.Info("inline bye")
+			})
+		})
 		abair.Get(s, "/", h.getHealth)
 		abair.Post(s, "/", h.postHealth)
 		abair.Get(s, "/{service}/{version}/after", h.serviceHealth)
@@ -23,7 +32,7 @@ func (h Health) getHealth(ctx context.Context, req abair.Request[struct{}, struc
 	return struct{}{}, nil
 }
 
-func (h Health) postHealth(ctx context.Context, req abair.Request[domain.HealthPostRequest, struct{}]) (domain.HealthPostResponse, error) {
+func (h Health) postHealth(ctx context.Context, req abair.Request[domain.HealthPostBody, struct{}]) (domain.HealthPostResponse, error) {
 	return domain.HealthPostResponse{
 		Status: "ok",
 	}, nil

@@ -64,6 +64,12 @@ func Route(s *Server, path string, fn func(s *Server)) {
 	s.Router.Mount(path, sub)
 }
 
+// Use middleware.
+func Use(s *Server, middleware ...func(http.Handler) http.Handler) {
+	applyDefaultServerCfg(s)
+	s.Router.Use(middleware...)
+}
+
 // Get is a GET handler.
 func Get[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
 	s.Router.Get(path, handler(s, hndlr))

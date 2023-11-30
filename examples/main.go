@@ -1,10 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tigh-latte/abair"
 	"github.com/tigh-latte/abair/examples/transport/rest"
 )
@@ -15,13 +16,25 @@ func main() {
 		ErrorHandler: nil,
 	}
 
-	h := rest.Health{}
-	h.Route(&s)
+	abair.Route(&s, "/api/v1", func(s *abair.Server) {
+		abair.Use(s,
+			middleware.RequestID,
+			middlewareExample(s.Logger),
+		)
 
-	chi.Walk(s.Router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
-		fmt.Println(route)
-		return nil
+		h := rest.Health{}
+		h.Route(s)
 	})
 
 	http.ListenAndServe(":3000", s)
+}
+
+func middlewareExample(log *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Info("hi")
+			next.ServeHTTP(w, r)
+			log.Info("byte")
+		})
+	}
 }
