@@ -11,14 +11,17 @@ import (
 
 func main() {
 	s := abair.Server{
-		Router: chi.NewRouter(),
-		ErrorHandler: func(_ http.ResponseWriter, _ *http.Request, err error) {
-			fmt.Println(fmt.Errorf("bad error: %w", err))
-		},
+		Router:       chi.NewRouter(),
+		ErrorHandler: nil,
 	}
 
 	h := rest.Health{}
 	h.Route(&s)
+
+	chi.Walk(s.Router, func(method, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		fmt.Println(route)
+		return nil
+	})
 
 	http.ListenAndServe(":3000", s)
 }
