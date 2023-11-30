@@ -2,9 +2,9 @@ package rest
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tigh-latte/abair"
 	"github.com/tigh-latte/abair/examples/domain"
 )
@@ -15,13 +15,10 @@ type Health struct{}
 // Route is a route.
 func (h Health) Route(s *abair.Server) {
 	abair.Route(s, "/health", func(s *abair.Server) {
-		abair.Use(s, func(next http.Handler) http.Handler {
-			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				s.Logger.LogAttrs(r.Context(), slog.LevelInfo, "inline hi")
-				next.ServeHTTP(w, r)
-				s.Logger.LogAttrs(r.Context(), slog.LevelInfo, "inline bye")
-			})
-		})
+		abair.Use(s,
+			middleware.Logger,
+		)
+
 		abair.Get(s, "/", h.getHealth)
 		abair.Post(s, "/", h.postHealth)
 		abair.Get(s, "/{service}/{version}/after", h.serviceHealth)
