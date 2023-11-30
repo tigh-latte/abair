@@ -11,29 +11,23 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 )
-
-var loadErrorHandler sync.Once
-
-func applyDefaultServerCfg(s *Server) func() {
-	return func() {
-		if s.Logger == nil {
-			s.Logger = slog.Default()
-		}
-		if s.ErrorHandler == nil {
-			s.ErrorHandler = buildDefaultErrorHandler(s.Logger)
-		}
-	}
-}
 
 // Server is a wrapper around chi.Router.
 type Server struct {
 	Router       chi.Router
 	Logger       *slog.Logger
 	ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+func NewServer() *Server {
+	return &Server{
+		Router:       chi.NewRouter(),
+		Logger:       slog.Default(),
+		ErrorHandler: buildDefaultErrorHandler(slog.Default()),
+	}
 }
 
 // ServeHTTP implements http.Handler.
@@ -54,7 +48,6 @@ type HandlerFunc[Body, Path, Resp any] func(context.Context, Request[Body, Path]
 
 // Route is a route.
 func Route(s *Server, path string, fn func(s *Server)) {
-	loadErrorHandler.Do(applyDefaultServerCfg(s))
 	sub := &Server{
 		Router:       chi.NewRouter(),
 		Logger:       s.Logger,
@@ -66,7 +59,6 @@ func Route(s *Server, path string, fn func(s *Server)) {
 
 // Use middleware.
 func Use(s *Server, middleware ...func(http.Handler) http.Handler) {
-	applyDefaultServerCfg(s)
 	s.Router.Use(middleware...)
 }
 
@@ -116,8 +108,6 @@ func Trace[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body,
 }
 
 func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp]) http.HandlerFunc {
-	loadErrorHandler.Do(applyDefaultServerCfg(s))
-
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 

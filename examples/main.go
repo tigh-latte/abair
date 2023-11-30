@@ -4,19 +4,15 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tigh-latte/abair"
 	"github.com/tigh-latte/abair/examples/transport/rest"
 )
 
 func main() {
-	s := abair.Server{
-		Router:       chi.NewRouter(),
-		ErrorHandler: nil,
-	}
+	s := abair.NewServer()
 
-	abair.Route(&s, "/api/v1", func(s *abair.Server) {
+	abair.Route(s, "/api/v1", func(s *abair.Server) {
 		abair.Use(s,
 			middleware.RequestID,
 			middlewareExample(s.Logger),
@@ -34,7 +30,7 @@ func middlewareExample(log *slog.Logger) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			log.Info("hi")
 			next.ServeHTTP(w, r)
-			log.Info("byte")
+			log.Info("bye")
 		})
 	}
 }
