@@ -3,6 +3,7 @@ package abair
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -13,21 +14,48 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"gopkg.in/yaml.v3"
 )
 
 // Server is a wrapper around chi.Router.
 type Server struct {
-	Router       chi.Router
-	Logger       *slog.Logger
-	ErrorHandler func(w http.ResponseWriter, r *http.Request, err error)
+	Router         chi.Router
+	Logger         *slog.Logger
+	Decoders       map[string]func(io.Reader) Decoder
+	Encoders       map[string]func(io.Writer) Encoder
+	DefaultDecoder func(io.Reader) Decoder
+	DefaultEncoder func(io.Writer) Encoder
+	ErrorHandler   func(w http.ResponseWriter, r *http.Request, err error)
 }
 
 func NewServer() *Server {
-	return &Server{
-		Router:       chi.NewRouter(),
-		Logger:       slog.Default(),
+	s := &Server{
+		Router: chi.NewRouter(),
+		Logger: slog.Default(),
+		DefaultDecoder: func(r io.Reader) Decoder {
+			return json.NewDecoder(r)
+		},
+		DefaultEncoder: func(w io.Writer) Encoder {
+			return json.NewEncoder(w)
+		},
 		ErrorHandler: buildDefaultErrorHandler(slog.Default()),
 	}
+	s.Decoders = map[string]func(io.Reader) Decoder{
+		"application/json": func(r io.Reader) Decoder { return json.NewDecoder(r) },
+		"application/xml":  func(r io.Reader) Decoder { return xml.NewDecoder(r) },
+		"application/yaml": func(r io.Reader) Decoder { return yaml.NewDecoder(r) },
+		"text/xml":         func(r io.Reader) Decoder { return xml.NewDecoder(r) },
+		"text/yaml":        func(r io.Reader) Decoder { return yaml.NewDecoder(r) },
+	}
+	s.Encoders = map[string]func(io.Writer) Encoder{
+		"application/json": func(w io.Writer) Encoder { return json.NewEncoder(w) },
+		"application/xml":  func(w io.Writer) Encoder { return xml.NewEncoder(w) },
+		"application/yaml": func(w io.Writer) Encoder { return yaml.NewEncoder(w) },
+		"text/xml":         func(w io.Writer) Encoder { return xml.NewEncoder(w) },
+		"text/yaml":        func(w io.Writer) Encoder { return yaml.NewEncoder(w) },
+	}
+
+	return s
 }
 
 // ServeHTTP implements http.Handler.
@@ -49,9 +77,13 @@ type HandlerFunc[Body, Path, Resp any] func(context.Context, Request[Body, Path]
 // Route is a route.
 func Route(s *Server, path string, fn func(s *Server)) {
 	sub := &Server{
-		Router:       chi.NewRouter(),
-		Logger:       s.Logger,
-		ErrorHandler: s.ErrorHandler,
+		Router:         chi.NewRouter(),
+		Logger:         s.Logger,
+		DefaultDecoder: s.DefaultDecoder,
+		DefaultEncoder: s.DefaultEncoder,
+		Decoders:       s.Decoders,
+		Encoders:       s.Encoders,
+		ErrorHandler:   s.ErrorHandler,
 	}
 	fn(sub)
 	s.Router.Mount(path, sub)
@@ -117,7 +149,7 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 			Body:        *new(Body),
 			QueryParams: r.URL.Query(),
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req.Body); err != nil && err != io.EOF {
+		if err := s.decode(r, &req.Body); err != nil && err != io.EOF {
 			s.ErrorHandler(w, r, err)
 			return
 		}
@@ -213,7 +245,7 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 			return
 		}
 
-		if err = json.NewEncoder(w).Encode(resp); err != nil {
+		if err = s.encode(r, w, resp); err != nil {
 			s.ErrorHandler(w, r, err)
 			return
 		}
@@ -269,4 +301,20 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 
 		_, _ = w.Write(bb)
 	}
+}
+
+func (s *Server) decode(r *http.Request, v any) error {
+	dec, ok := s.Decoders[r.Header.Get("Content-Type")]
+	if !ok {
+		return s.DefaultDecoder(r.Body).Decode(v)
+	}
+	return dec(r.Body).Decode(v)
+}
+
+func (s *Server) encode(r *http.Request, w http.ResponseWriter, v any) error {
+	enc, ok := s.Encoders[r.Header.Get("Accept")]
+	if !ok {
+		return s.DefaultEncoder(w).Encode(v)
+	}
+	return enc(w).Encode(v)
 }
