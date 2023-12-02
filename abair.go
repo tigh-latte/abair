@@ -31,6 +31,7 @@ type Server struct {
 	PreferredResponseType string
 }
 
+// NewServer returns a new Server.
 func NewServer() *Server {
 	s := &Server{
 		Router: chi.NewRouter(),
@@ -42,8 +43,8 @@ func NewServer() *Server {
 			return json.NewEncoder(w)
 		},
 		PreferredResponseType: "application/json",
-		ErrorHandler:          buildDefaultErrorHandler(slog.Default()),
 	}
+	s.ErrorHandler = buildDefaultErrorHandler(s, slog.Default())
 	s.Decoders = map[string]func(io.Reader) Decoder{
 		"application/json": func(r io.Reader) Decoder { return json.NewDecoder(r) },
 		"application/xml":  func(r io.Reader) Decoder { return xml.NewDecoder(r) },
@@ -58,6 +59,18 @@ func NewServer() *Server {
 		"text/xml":         func(w io.Writer) Encoder { return xml.NewEncoder(w) },
 		"text/yaml":        func(w io.Writer) Encoder { return yaml.NewEncoder(w) },
 	}
+	s.Router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		s.ErrorHandler(w, r, &HTTPError{
+			Code:    http.StatusNotFound,
+			Message: http.StatusText(http.StatusNotFound),
+		})
+	})
+	s.Router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		s.ErrorHandler(w, r, &HTTPError{
+			Code:    http.StatusMethodNotAllowed,
+			Message: http.StatusText(http.StatusMethodNotAllowed),
+		})
+	})
 
 	return s
 }
@@ -250,14 +263,14 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 			return
 		}
 
-		if err = s.encode(r, w, resp); err != nil {
+		if err = s.encode(w, r, resp); err != nil {
 			s.ErrorHandler(w, r, err)
 			return
 		}
 	})
 }
 
-func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *http.Request, err error) {
+func buildDefaultErrorHandler(s *Server, log *slog.Logger) func(w http.ResponseWriter, r *http.Request, err error) {
 	return func(w http.ResponseWriter, r *http.Request, err error) {
 		h := &HTTPError{}
 		if ok := errors.As(err, &h); ok {
@@ -294,8 +307,7 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 			return
 		}
 
-		bb, err := json.Marshal(response)
-		if err != nil {
+		if err := s.encode(w, r, response); err != nil {
 			log.LogAttrs(
 				r.Context(),
 				slog.LevelError,
@@ -303,8 +315,6 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 				slog.Any("error", err),
 			)
 		}
-
-		_, _ = w.Write(bb)
 	}
 }
 
@@ -316,7 +326,7 @@ func (s *Server) decode(r *http.Request, v any) error {
 	return fn(r.Body).Decode(v)
 }
 
-func (s *Server) encode(r *http.Request, w http.ResponseWriter, v any) error {
+func (s *Server) encode(w http.ResponseWriter, r *http.Request, v any) error {
 	accept := r.Header.Get("Accept")
 	if idx := strings.IndexByte(accept, ','); idx >= 0 {
 		if strings.Contains(accept, s.PreferredResponseType) {
