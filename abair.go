@@ -183,14 +183,24 @@ func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp
 					)
 					return
 				}
-
-				//if ptr.Implements(reflect.TypeOf((*interface {
-				//	ParsePath(string) error
-				//})(nil)).Elem()) {
-				//	fmt.Println("ok so")
-				//}
 			case reflect.Ptr:
-
+				item := pathVal.Elem().Field(i)
+				if item.IsNil() {
+					item.Set(reflect.New(field.Type.Elem()))
+				}
+				loader, ok := item.Interface().(interface {
+					ParsePath(string) error
+				})
+				if !ok {
+					break
+				}
+				if err := loader.ParsePath(pval); err != nil {
+					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
+						WithMessage(err.Error()),
+						WithInternal(err)),
+					)
+					return
+				}
 			}
 		}
 
