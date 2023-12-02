@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"gopkg.in/yaml.v3"
@@ -26,6 +27,8 @@ type Server struct {
 	DefaultDecoder func(io.Reader) Decoder
 	DefaultEncoder func(io.Writer) Encoder
 	ErrorHandler   func(w http.ResponseWriter, r *http.Request, err error)
+
+	PreferredResponseType string
 }
 
 func NewServer() *Server {
@@ -38,7 +41,8 @@ func NewServer() *Server {
 		DefaultEncoder: func(w io.Writer) Encoder {
 			return json.NewEncoder(w)
 		},
-		ErrorHandler: buildDefaultErrorHandler(slog.Default()),
+		PreferredResponseType: "application/json",
+		ErrorHandler:          buildDefaultErrorHandler(slog.Default()),
 	}
 	s.Decoders = map[string]func(io.Reader) Decoder{
 		"application/json": func(r io.Reader) Decoder { return json.NewDecoder(r) },
@@ -77,13 +81,14 @@ type HandlerFunc[Body, Path, Resp any] func(context.Context, Request[Body, Path]
 // Route is a route.
 func Route(s *Server, path string, fn func(s *Server)) {
 	sub := &Server{
-		Router:         chi.NewRouter(),
-		Logger:         s.Logger,
-		DefaultDecoder: s.DefaultDecoder,
-		DefaultEncoder: s.DefaultEncoder,
-		Decoders:       s.Decoders,
-		Encoders:       s.Encoders,
-		ErrorHandler:   s.ErrorHandler,
+		Router:                chi.NewRouter(),
+		Logger:                s.Logger,
+		DefaultDecoder:        s.DefaultDecoder,
+		DefaultEncoder:        s.DefaultEncoder,
+		Decoders:              s.Decoders,
+		Encoders:              s.Encoders,
+		PreferredResponseType: s.PreferredResponseType,
+		ErrorHandler:          s.ErrorHandler,
 	}
 	fn(sub)
 	s.Router.Mount(path, sub)
@@ -278,7 +283,7 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 		switch m := message.(type) {
 		case string:
 			response["message"] = m
-		case json.Marshaler:
+		case json.Marshaler, xml.Marshaler, yaml.Marshaler:
 			// do nothing
 		case error:
 			response["message"] = m.Error()
@@ -304,17 +309,31 @@ func buildDefaultErrorHandler(log *slog.Logger) func(w http.ResponseWriter, r *h
 }
 
 func (s *Server) decode(r *http.Request, v any) error {
-	dec, ok := s.Decoders[r.Header.Get("Content-Type")]
+	fn, ok := s.Decoders[r.Header.Get("Content-Type")]
 	if !ok {
 		return s.DefaultDecoder(r.Body).Decode(v)
 	}
-	return dec(r.Body).Decode(v)
+	return fn(r.Body).Decode(v)
 }
 
 func (s *Server) encode(r *http.Request, w http.ResponseWriter, v any) error {
-	enc, ok := s.Encoders[r.Header.Get("Accept")]
+	accept := r.Header.Get("Accept")
+	if idx := strings.IndexByte(accept, ','); idx >= 0 {
+		if strings.Contains(accept, s.PreferredResponseType) {
+			accept = s.PreferredResponseType
+		} else {
+			accept = accept[:idx]
+		}
+	}
+	if idx := strings.IndexByte(accept, ';'); idx >= 0 {
+		accept = accept[:idx]
+	}
+	fn, ok := s.Encoders[accept]
 	if !ok {
+		w.Header().Set("Content-Type", s.PreferredResponseType)
 		return s.DefaultEncoder(w).Encode(v)
 	}
-	return enc(w).Encode(v)
+
+	w.Header().Set("Content-Type", accept)
+	return fn(w).Encode(v)
 }
