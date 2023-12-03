@@ -24,12 +24,13 @@ type HealthGetServiceResponse struct {
 
 // HealthPostBody is a health post request.
 type HealthPostBody struct {
-	Service string
+	Service string `json:"service"`
 }
 
 // HealthPostResponse is a health post response.
 type HealthPostResponse struct {
-	Status string
+	Service string `json:"service"`
+	Status  string `json:"status"`
 }
 
 // HealthGetArnPath is a health get arn path.

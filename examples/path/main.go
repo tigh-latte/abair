@@ -8,11 +8,11 @@ import (
 )
 
 func main() {
-	server := abair.NewServer()
+	s := abair.NewServer()
 
-	abair.Route(server, "/api/v1", func(s *abair.Server) {
+	s.Route("/api/v1", func(s *abair.Server) {
 		(&rest.Schema{}).Routes(s)
 	})
 
-	http.ListenAndServe(":8080", server)
+	http.ListenAndServe(":8080", s)
 }

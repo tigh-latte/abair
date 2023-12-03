@@ -6,13 +6,13 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tigh-latte/abair"
-	"github.com/tigh-latte/abair/examples/transport/rest"
+	"github.com/tigh-latte/abair/examples/simple/transport/rest"
 )
 
 func main() {
 	s := abair.NewServer()
 
-	abair.Route(s, "/api/v1", func(s *abair.Server) {
+	s.Route("/api/v1", func(s *abair.Server) {
 		abair.Use(s,
 			middleware.RequestID,
 			middlewareExample(s.Logger),

@@ -22,10 +22,10 @@ var accounts = []domain.Account{{
 type Account struct{}
 
 func (a Account) Routes(s *abair.Server) {
-	abair.Route(s, "/accounts", func(s *abair.Server) {
-		abair.Get(s, "/", a.getAccounts)
-		abair.Get(s, "/{id}", a.getAccount)
-		abair.Post(s, "/", a.createAccount)
+	s.Route("/accounts", func(s *abair.Server) {
+		s.Get("/", abair.HTTPHandlerWrapper(s, a.getAccounts))
+		s.Get("/{id}", abair.HTTPHandlerWrapper(s, a.getAccount))
+		s.Post("/", abair.HTTPHandlerWrapper(s, a.createAccount))
 	})
 }
 

@@ -9,10 +9,10 @@ import (
 
 type Schema struct{}
 
-func (s Schema) Routes(server *abair.Server) {
-	abair.Route(server, "/schema", func(server *abair.Server) {
-		abair.Get(server, "/1/{person}", s.handle1)
-		abair.Get(server, "/2/{person}", s.handle2)
+func (s Schema) Routes(svr *abair.Server) {
+	svr.Route("/schema", func(svr *abair.Server) {
+		svr.Get("/1/{person}", abair.HTTPHandlerWrapper(svr, s.handle1))
+		svr.Get("/2/{person}", abair.HTTPHandlerWrapper(svr, s.handle2))
 	})
 }
 

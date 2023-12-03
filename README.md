@@ -48,16 +48,16 @@ func handlerPersonGet(ctx context.Context, req abair.Request[struct{}, PersonGet
 }
 ```
 
-Create a server via `NewService()` and use the page level functions to build routes.
+Create a server via `NewServer()` and use the `abair.HTTPHandlerWrapper` to build handlers.
 
 Golang should be able to infer all types leading to simple generic hookups.
 
 Start the server with `http.ListenAndServe(...)`
 
 ```go
-server := abair.NewService()
-abair.Post(server, "/person", handlerPersonPost)
-abair.Get(server, "/person/{id}", handlerPersonGet)
+s := abair.NewService()
+s.Post("/person", abair.HTTPHandlerWrapper(s, handlerPersonPost))
+s.Get("/person/{id}", abair.HTTPHandlerWrapper(s, handlerPersonGet))
 
 http.ListenAndServe(":8080", server)
 ```

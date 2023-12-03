@@ -18,9 +18,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Router = chi.Router
+
 // Server is a wrapper around chi.Router.
 type Server struct {
-	Router         chi.Router
+	Router
 	Logger         *slog.Logger
 	Decoders       map[string]func(io.Reader) Decoder
 	Encoders       map[string]func(io.Writer) Encoder
@@ -59,13 +61,13 @@ func NewServer() *Server {
 		"text/xml":         func(w io.Writer) Encoder { return xml.NewEncoder(w) },
 		"text/yaml":        func(w io.Writer) Encoder { return yaml.NewEncoder(w) },
 	}
-	s.Router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+	s.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		s.ErrorHandler(w, r, &HTTPError{
 			Code:    http.StatusNotFound,
 			Message: http.StatusText(http.StatusNotFound),
 		})
 	})
-	s.Router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+	s.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		s.ErrorHandler(w, r, &HTTPError{
 			Code:    http.StatusMethodNotAllowed,
 			Message: http.StatusText(http.StatusMethodNotAllowed),
@@ -73,11 +75,6 @@ func NewServer() *Server {
 	})
 
 	return s
-}
-
-// ServeHTTP implements http.Handler.
-func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.Router.ServeHTTP(w, r)
 }
 
 // Request is a request.
@@ -92,7 +89,7 @@ type Request[B, P any] struct {
 type HandlerFunc[Body, Path, Resp any] func(context.Context, Request[Body, Path]) (Resp, error)
 
 // Route is a route.
-func Route(s *Server, path string, fn func(s *Server)) {
+func (s *Server) Route(path string, fn func(s *Server)) {
 	sub := &Server{
 		Router:                chi.NewRouter(),
 		Logger:                s.Logger,
@@ -104,60 +101,11 @@ func Route(s *Server, path string, fn func(s *Server)) {
 		ErrorHandler:          s.ErrorHandler,
 	}
 	fn(sub)
-	s.Router.Mount(path, sub)
+	s.Mount(path, sub)
 }
 
-// Use middleware.
-func Use(s *Server, middleware ...func(http.Handler) http.Handler) {
-	s.Router.Use(middleware...)
-}
-
-// Get is a GET handler.
-func Get[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Get(path, handler(s, hndlr))
-}
-
-// Post is a POST handler.
-func Post[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Post(path, handler(s, hndlr))
-}
-
-// Put is a PUT handler.
-func Put[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Put(path, handler(s, hndlr))
-}
-
-// Delete is a DELETE handler.
-func Delete[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Delete(path, handler(s, hndlr))
-}
-
-// Patch is a PATCH handler.
-func Patch[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Patch(path, handler(s, hndlr))
-}
-
-// Options is a OPTIONS handler.
-func Options[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Options(path, handler(s, hndlr))
-}
-
-// Head is a HEAD handler.
-func Head[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Head(path, handler(s, hndlr))
-}
-
-// Connect is a CONNECT handler.
-func Connect[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Connect(path, handler(s, hndlr))
-}
-
-// Trace is a TRACE handler.
-func Trace[Body, Path, Resp any](s *Server, path string, hndlr HandlerFunc[Body, Path, Resp]) {
-	s.Router.Trace(path, handler(s, hndlr))
-}
-
-func handler[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp]) http.HandlerFunc {
+// HTTPHandlerWrapper wraps a abair.HandlerFunc to be used as a http.HandlerFunc.
+func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body, Path, Resp]) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 

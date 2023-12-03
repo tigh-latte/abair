@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/tigh-latte/abair"
-	"github.com/tigh-latte/abair/examples/domain"
+	"github.com/tigh-latte/abair/examples/simple/domain"
 )
 
 // Health is a health handler.
@@ -14,17 +14,15 @@ type Health struct{}
 
 // Route is a route.
 func (h Health) Route(s *abair.Server) {
-	abair.Route(s, "/health", func(s *abair.Server) {
-		abair.Use(s,
-			middleware.Logger,
-		)
+	s.Route("/health", func(s *abair.Server) {
+		s.Use(middleware.Logger)
 
-		abair.Get(s, "/", h.getHealth)
-		abair.Post(s, "/", h.postHealth)
-		abair.Get(s, "/{service}/{version}/after", h.serviceHealth)
-		abair.Get(s, "/{arn}", h.arnHealth)
+		s.Get("/", abair.HTTPHandlerWrapper(s, h.getHealth))
+		s.Post("/", abair.HTTPHandlerWrapper(s, h.postHealth))
+		s.Get("/{service}/{version}/after", abair.HTTPHandlerWrapper(s, h.serviceHealth))
+		s.Get("/{arn}", abair.HTTPHandlerWrapper(s, h.arnHealth))
 	})
-	abair.Get(s, "/badhealth", h.badHealth)
+	s.Get("/badhealth", abair.HTTPHandlerWrapper(s, h.badHealth))
 }
 
 func (h Health) getHealth(ctx context.Context, req abair.Request[struct{}, struct{}]) (struct{}, error) {
@@ -33,7 +31,8 @@ func (h Health) getHealth(ctx context.Context, req abair.Request[struct{}, struc
 
 func (h Health) postHealth(ctx context.Context, req abair.Request[domain.HealthPostBody, struct{}]) (domain.HealthPostResponse, error) {
 	return domain.HealthPostResponse{
-		Status: "ok",
+		Service: req.Body.Service,
+		Status:  "ok",
 	}, nil
 }
 
