@@ -37,15 +37,13 @@ func NewHTTPError(code int, opts ...HttpErrorOptionFunc) *HTTPError {
 }
 
 // WithMessage sets the message.
-func WithMessage(message any) HttpErrorOptionFunc {
-	return func(h *HTTPError) {
-		h.Message = message
-	}
+func (h *HTTPError) WithMessage(message any) *HTTPError {
+	h.Message = message
+	return h
 }
 
 // WithInternal sets the internal error.
-func WithInternal(err error) HttpErrorOptionFunc {
-	return func(h *HTTPError) {
-		h.Internal = err
-	}
+func (h *HTTPError) WithInternal(err error) *HTTPError {
+	h.Internal = err
+	return h
 }

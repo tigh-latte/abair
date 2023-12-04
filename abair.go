@@ -127,6 +127,9 @@ func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body,
 
 		for i := 0; i < pathType.NumField(); i++ {
 			field := pathType.Field(i)
+			if field.PkgPath == "" {
+				continue // skip unexported fields.
+			}
 			tag := field.Tag.Get("path")
 			if tag == "" {
 				tag = field.Name
@@ -134,9 +137,10 @@ func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body,
 
 			pval := chi.URLParamFromCtx(ctx, tag)
 			if pval == "" {
-				s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
-					WithMessage(fmt.Sprintf("missing param %q", tag)),
-				))
+				s.ErrorHandler(w, r, &HTTPError{
+					Code:    http.StatusBadRequest,
+					Message: fmt.Sprintf("missing param %q", tag),
+				})
 				return
 			}
 
@@ -146,24 +150,31 @@ func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body,
 			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 				val, err := strconv.ParseInt(pval, 10, 64)
 				if err != nil {
-					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
-						WithMessage(fmt.Sprintf("expected param %q to be an integer", tag)),
-						WithInternal(err),
-					))
+					s.ErrorHandler(w, r, &HTTPError{
+						Code:     http.StatusBadRequest,
+						Message:  fmt.Sprintf("expected param %q to be an integer", tag),
+						Internal: err,
+					})
 					return
 				}
 				pathVal.Elem().Field(i).SetInt(int64(val))
 			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 				val, err := strconv.ParseUint(pval, 10, 64)
 				if err != nil {
-					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
+					s.ErrorHandler(w, r, &HTTPError{
+						Code:     http.StatusBadRequest,
+						Internal: err,
+					})
 					return
 				}
 				pathVal.Elem().Field(i).SetUint(val)
 			case reflect.Float32, reflect.Float64:
 				val, err := strconv.ParseFloat(pval, 64)
 				if err != nil {
-					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest, WithInternal(err)))
+					s.ErrorHandler(w, r, &HTTPError{
+						Code:     http.StatusBadRequest,
+						Internal: err,
+					})
 					return
 				}
 				pathVal.Elem().Field(i).SetFloat(val)
@@ -175,10 +186,7 @@ func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body,
 					break
 				}
 				if err := loader.ParsePath(pval); err != nil {
-					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
-						WithMessage(err.Error()),
-						WithInternal(err)),
-					)
+					s.ErrorHandler(w, r, err)
 					return
 				}
 			case reflect.Ptr:
@@ -193,17 +201,11 @@ func HTTPHandlerWrapper[Body, Path, Resp any](s *Server, hndlr HandlerFunc[Body,
 					break
 				}
 				if err := loader.ParsePath(pval); err != nil {
-					s.ErrorHandler(w, r, NewHTTPError(http.StatusBadRequest,
-						WithMessage(err.Error()),
-						WithInternal(err)),
-					)
+					s.ErrorHandler(w, r, err)
 					return
 				}
 			}
 		}
-
-		req.QueryParams = r.URL.Query()
-		req.Headers = r.Header
 
 		resp, err := hndlr(ctx, req)
 		if err != nil {

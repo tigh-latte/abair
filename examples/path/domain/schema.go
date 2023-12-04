@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,10 +39,9 @@ func (p *Person) ParsePath(s string) error {
 	p.Name = s[0:split]
 	age, err := strconv.ParseInt(s[split+1:], 10, 32)
 	if err != nil {
-		return abair.NewHTTPError(http.StatusBadRequest,
-			abair.WithMessage("invalid age"),
-			abair.WithInternal(err),
-		)
+		return abair.NewHTTPError(http.StatusBadRequest).
+			WithMessage(fmt.Sprintf("invalid age %q", age)).
+			WithInternal(err)
 	}
 	p.Age = age
 	return nil

@@ -39,10 +39,7 @@ func (a *Account) getAccount(ctx context.Context, req abair.Request[struct{}, do
 			return domain.AccountGetOneResponse{Account: account}, nil
 		}
 	}
-	return domain.AccountGetOneResponse{}, abair.NewHTTPError(
-		http.StatusNotFound,
-		abair.WithMessage("Account not found"),
-	)
+	return domain.AccountGetOneResponse{}, abair.NewHTTPError(http.StatusNotFound).WithMessage("Account not found")
 }
 
 func (a *Account) createAccount(ctx context.Context, req abair.Request[domain.AccountCreateBody, struct{}]) (domain.AccountCreateResponse, error) {

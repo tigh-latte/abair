@@ -37,7 +37,7 @@ func (h Health) postHealth(ctx context.Context, req abair.Request[domain.HealthP
 }
 
 func (h Health) badHealth(ctx context.Context, req abair.Request[struct{}, struct{}]) (struct{}, error) {
-	return struct{}{}, abair.NewHTTPError(http.StatusBadRequest, abair.WithMessage("bad health"))
+	return struct{}{}, abair.NewHTTPError(http.StatusBadRequest).WithMessage("bad health")
 }
 
 func (h Health) serviceHealth(ctx context.Context, req abair.Request[struct{}, domain.HealthGetServicePath]) (domain.HealthGetServiceResponse, error) {

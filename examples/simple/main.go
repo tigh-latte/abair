@@ -13,13 +13,12 @@ func main() {
 	s := abair.NewServer()
 
 	s.Route("/api/v1", func(s *abair.Server) {
-		abair.Use(s,
+		s.Use(
 			middleware.RequestID,
 			middlewareExample(s.Logger),
 		)
 
-		h := rest.Health{}
-		h.Route(s)
+		(&rest.Health{}).Route(s)
 	})
 
 	http.ListenAndServe(":3000", s)
